@@ -27,6 +27,13 @@ def train_epoch(
     criterion = nn.CrossEntropyLoss()
     total_loss = 0.0
 
+    # track write statistics
+    total_writes = 0
+    total_tokens = 0
+
+    # memory penalty weight (tunable)
+    mem_lambda = 0.1
+
     for x, y in tqdm(loader, desc="Train", leave=False):
         x = x.to(device)
         y = y.to(device)
@@ -35,11 +42,25 @@ def train_epoch(
         # Reset memory every batch for now (simple)
         model.reset_memory()
         logits = model(x, use_memory=True)
+
+        # task loss
         loss = criterion(logits, y)
+
+        # memory usage penalty: encourage smaller write probabilities
+        if model.last_write_prob_mean is not None:
+            loss = loss + mem_lambda * model.last_write_prob_mean
+
         loss.backward()
         optimizer.step()
 
         total_loss += loss.item() * x.size(0)
+
+        # accumulate write stats from this batch
+        total_writes += model.last_write_count
+        total_tokens += model.last_token_count
+
+    avg_write_ratio = total_writes / max(total_tokens, 1)
+    print(f"  Avg write ratio this epoch: {avg_write_ratio:.4f}")
 
     return total_loss / len(loader.dataset)
 
@@ -81,12 +102,22 @@ def main():
     vocab_size = 10
     seq_len = 64
     batch_size = 64
-    num_epochs = 5
+    num_epochs = 20
     lr = 1e-3
 
     # Data
-    train_ds = DelayedQADataset(num_samples=5000, seq_len=seq_len, vocab_size=vocab_size, seed=123)
-    val_ds = DelayedQADataset(num_samples=1000, seq_len=seq_len, vocab_size=vocab_size, seed=456)
+    train_ds = DelayedQADataset(
+        num_samples=5000,
+        seq_len=seq_len,
+        vocab_size=vocab_size,
+        seed=123,
+    )
+    val_ds = DelayedQADataset(
+        num_samples=1000,
+        seq_len=seq_len,
+        vocab_size=vocab_size,
+        seed=456,
+    )
 
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
@@ -101,7 +132,7 @@ def main():
         max_seq_len=seq_len,
         num_classes=vocab_size,
         mem_max_entries=256,
-        write_threshold=0.5,
+        write_threshold=0.5,   # middle threshold so gate can move
     ).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)

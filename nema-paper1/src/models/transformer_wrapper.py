@@ -1,7 +1,6 @@
 # src/models/transformer_wrapper.py
 
 from __future__ import annotations
-from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -57,7 +56,14 @@ class SimpleTransformerWithMemory(nn.Module):
         # Classifier on top of [CLS] with optional memory augmentation
         self.classifier = nn.Linear(d_model, num_classes)
 
+        # Tracking stats for analysis
+        self.last_write_count: int = 0
+        self.last_token_count: int = 0
+        # Mean write probability for current forward (used in loss penalty)
+        self.last_write_prob_mean: torch.Tensor | None = None
+
     def reset_memory(self) -> None:
+        """Clear memory before a new sequence/batch."""
         self.memory.reset()
 
     def forward(
@@ -74,6 +80,11 @@ class SimpleTransformerWithMemory(nn.Module):
         if seq_len > self.max_seq_len:
             raise ValueError(f"Sequence length {seq_len} > max_seq_len {self.max_seq_len}")
 
+        # Reset stats for this forward pass
+        self.last_write_count = 0
+        self.last_token_count = batch_size * seq_len
+        self.last_write_prob_mean = None
+
         # Positional indices
         pos_ids = torch.arange(seq_len, device=device).unsqueeze(0).expand(batch_size, -1)
 
@@ -85,15 +96,18 @@ class SimpleTransformerWithMemory(nn.Module):
 
         if use_memory:
             # 1) WRITE: for each time-step, decide which positions to store
-            # We'll flatten across batch for gating, then iterate per item.
+            # We'll flatten across batch for gating, then reshape back.
             flat_h = h.reshape(-1, self.d_model)  # (batch * seq_len, d_model)
             write_probs = self.write_gate(flat_h)  # (batch * seq_len,)
             write_probs = write_probs.reshape(batch_size, seq_len)  # (batch, seq_len)
 
-            # Use a simple hard threshold. For more advanced training,
-            # you can use straight-through estimators or relaxations.
+            # Store mean write probability with gradient
+            self.last_write_prob_mean = write_probs.mean()
+
+            # Use a simple hard threshold for actual writes (no gradient)
             with torch.no_grad():
                 write_mask = write_probs > self.write_threshold  # (batch, seq_len)
+                self.last_write_count = int(write_mask.sum().item())
 
             # For now, we share a single MemoryStore across batch (simple).
             # More advanced: per-instance memory.
@@ -106,7 +120,6 @@ class SimpleTransformerWithMemory(nn.Module):
                         )
 
             # 2) READ: retrieve from memory using CLS as query
-            # For now: we retrieve per sample, then average augmented state
             augmented_cls = []
             for b in range(batch_size):
                 query = cls_state[b].detach().cpu()
