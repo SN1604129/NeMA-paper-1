@@ -1,5 +1,7 @@
 NeMA-Lite
+
 Author - Sudipta Nath
+
 Learning Selective Memory Writing in Memory-Augmented Transformers
 
 📄 Target – Selective Memory Writing
@@ -43,6 +45,7 @@ Memory–Performance Tradeoff Analysis
 Systematic sweeps reveal how memory usage and accuracy trade off under different budgets.
 
 ⚠️ Scope note:
+
 This paper focuses only on memory writing. Forgetting, updating, and hierarchical memory are intentionally left for future work.
 
 🏗️ Architecture Summary
@@ -81,9 +84,11 @@ Training Objective
 : classification loss
 
 𝜆
+
 λ: memory penalty controlling write sparsity
 
 🧪 Experimental Setup
+
 Task: Synthetic Delayed Question Answering
 
 Input: sequence of digits
@@ -111,38 +116,60 @@ Multiple random seeds
 📁 Repository Structure
 
 nema-paper1/
+
 ├── src/
+
 │   ├── models/
+
 │   │   ├── memory_store.py        # External memory implementation
+
 │   │   ├── write_gate.py          # Neural write gate
+
 │   │   └── transformer_wrapper.py # NeMA-Lite model
+
 │   ├── tasks/
+
 │   │   └── synthetic_delayed_qa.py
+
 │   ├── train_delayed_qa.py        # Training + logging
+
 │   ├── sweep_delayed_qa.py        # Hyperparameter sweeps
+
 │   ├── plot_results.py            # Plot generation
+
 │   └── summarise_result.py        # Final-epoch aggregation
+
 ├── notebooks/
+
 │   └── 01_NeMA_Lite_Results_Summary.ipynb
+
 ├── results/                       # Per-run CSV logs
+
 ├── plots/                         # Generated figures
+
 ├── tables/                        # Summary tables
+
 └── README.md
 
 🚀 How to Run
+
 1️⃣ Install dependencies
+
 pip install -r requirements.txt
 
 2️⃣ Train a single run
+
 python src/train_delayed_qa.py \
   --mem_lambda 0.05 \
   --write_threshold 0.7 \
   --num_epochs 20
 
 3️⃣ Run hyperparameter sweep
+
 python src/sweep_delayed_qa.py
 
 4️⃣ Generate plots
+
 python -m src.plot_results --results_dir results --plots_dir plots
 
 5️⃣ Summarise results (Table 1)
@@ -168,8 +195,8 @@ tables/summary_final_epoch.csv
 
 📓 Notebook
 
-The notebook
 notebooks/01_NeMA_Lite_Results_Summary.ipynb
+
 provides a clean, reproducible summary of:
 
 Sweep results
