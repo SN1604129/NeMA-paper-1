@@ -1,9 +1,9 @@
 NeMA-Lite
-
+Author - Sudipta Nath
 Learning Selective Memory Writing in Memory-Augmented Transformers
 
-📄 Paper 1 – Selective Memory Writing
-🧠 Research Codebase
+📄 Target – Selective Memory Writing
+
 
 📌 Overview
 
